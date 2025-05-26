@@ -1,0 +1,137 @@
+const std = @import("std");
+
+const TemperatureScale = enum {
+    Celsius,
+    Fahrenheit,
+    Kelvin,
+
+    fn toString(self: TemperatureScale) []const u8 {
+        return switch (self) {
+            .Celsius => "Celsius",
+            .Fahrenheit => "Fahrenheit",
+            .Kelvin => "Kelvin",
+        };
+    }
+};
+
+const Temperature = struct {
+    value: f64,
+    scale: TemperatureScale,
+
+    fn toCelsius(self: Temperature) Temperature {
+        const celsius_value: f64 = switch (self.scale) {
+            .Celsius => self.value,
+            .Fahrenheit => (self.value - 32.0) * 5.0 / 9.0,
+            .Kelvin => self.value - 273.15,
+        };
+        return Temperature{ .value = celsius_value, .scale = .Celsius };
+    }
+
+    fn toFahrenheit(self: Temperature) Temperature {
+        const celsius = self.toCelsius();
+        const fahrenheit_value = celsius.value * 9.0 / 5.0 + 32.0;
+        return Temperature{ .value = fahrenheit_value, .scale = .Fahrenheit };
+    }
+
+    fn toKelvin(self: Temperature) Temperature {
+        const celsius = self.toCelsius();
+        const kelvin_value = celsius.value + 273.15;
+        return Temperature{ .value = kelvin_value, .scale = .Kelvin };
+    }
+};
+
+// Placeholder for future volume thermal expansion calculations
+const ThermalExpansion = struct {
+    // TODO: Add material properties, coefficient of thermal expansion
+    // TODO: Add pressure and atmosphere conditions
+};
+
+// Placeholder for state change factoids
+const StateChangeFactoid = struct {
+    element: []const u8,
+    melting_point_kelvin: f64,
+    boiling_point_kelvin: f64,
+    environment: []const u8,
+
+    fn display(self: StateChangeFactoid) void {
+        std.debug.print(
+            "Element: {s}\nMelting Point: {d:.2} K\nBoiling Point: {d:.2} K\nEnvironment: {s}\n\n",
+            .{ self.element, self.melting_point_kelvin, self.boiling_point_kelvin, self.environment },
+        );
+    }
+};
+
+fn convertTemperature(value: f64, from_scale: TemperatureScale, to_scale: TemperatureScale) Temperature {
+    const temp = Temperature{ .value = value, .scale = from_scale };
+    return switch (to_scale) {
+        .Celsius => temp.toCelsius(),
+        .Fahrenheit => temp.toFahrenheit(),
+        .Kelvin => temp.toKelvin(),
+    };
+}
+
+fn parseScale(input: []const u8) !TemperatureScale {
+    const trimmed = std.mem.trim(u8, input, " \n");
+    if (std.ascii.eqlIgnoreCase(trimmed, "c") or std.ascii.eqlIgnoreCase(trimmed, "celsius")) {
+        return .Celsius;
+    } else if (std.ascii.eqlIgnoreCase(trimmed, "f") or std.ascii.eqlIgnoreCase(trimmed, "fahrenheit")) {
+        return .Fahrenheit;
+    } else if (std.ascii.eqlIgnoreCase(trimmed, "k") or std.ascii.eqlIgnoreCase(trimmed, "kelvin")) {
+        return .Kelvin;
+    }
+    return error.InvalidScale;
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    const stdin = std.io.getStdIn().reader();
+    const stdout = std.io.getStdOut().writer();
+
+    try stdout.print("Temperature Converter\n", .{});
+
+    // Sample factoid data
+    const factoids = [_]StateChangeFactoid{
+        .{ .element = "Water", .melting_point_kelvin = 273.15, .boiling_point_kelvin = 373.15, .environment = "Earth Atmosphere (1 atm)" },
+        // TODO: Add more elements, vacuum conditions, etc.
+    };
+
+    while (true) {
+        try stdout.print("\nEnter temperature value (or 'q' to quit): ", .{});
+        var input_buffer: [100]u8 = undefined;
+        const input = (try stdin.readUntilDelimiterOrEof(&input_buffer, '\n')) orelse break;
+
+        if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, input, " \n"), "q")) break;
+
+        const value = std.fmt.parseFloat(f64, std.mem.trim(u8, input, " \n")) catch {
+            try stdout.print("Invalid number. Please try again.\n", .{});
+            continue;
+        };
+
+        try stdout.print("Enter source scale (C/F/K): ", .{});
+        const from_input = (try stdin.readUntilDelimiterOrEof(&input_buffer, '\n')) orelse break;
+        const from_scale = parseScale(from_input) catch {
+            try stdout.print("Invalid scale. Use C, F, or K.\n", .{});
+            continue;
+        };
+
+        try stdout.print("Enter target scale (C/F/K): ", .{});
+        const to_input = (try stdin.readUntilDelimiterOrEof(&input_buffer, '\n')) orelse break;
+        const to_scale = parseScale(to_input) catch {
+            try stdout.print("Invalid scale. Use C, F, or K.\n", .{});
+            continue;
+        };
+
+        const result = convertTemperature(value, from_scale, to_scale);
+        try stdout.print(
+            "{d:.2} {s} = {d:.2} {s}\n",
+            .{ value, from_scale.toString(), result.value, to_scale.toString() },
+        );
+
+        // Display a sample factoid
+        try stdout.print("\nInteresting Factoid:\n", .{});
+        factoids[0].display();
+
+        // TODO: Add option to calculate thermal expansion
+        // TODO: Add menu for factoid lookup by element/environment
+    }
+}
